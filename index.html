@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="zh-SG">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>节水小卫士</title>
+    <style>
+        /* 基础重置与全局样式 */
+        * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+        body { 
+            font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif; 
+            background: linear-gradient(to bottom, #87CEFA, #E0FFFF); 
+            overflow: hidden; 
+            height: 100vh;
+            width: 100vw;
+            touch-action: manipulation; 
+        }
+
+        /* 游戏界面布局 */
+        #game-container { position: relative; width: 100%; height: 100%; }
+        
+        /* 顶部面板 */
+        #top-panel {
+            position: absolute;
+            top: 0; left: 0; width: 100%;
+            background-color: rgba(255, 255, 255, 0.95);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            z-index: 100;
+            padding: 10px 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            border-bottom-left-radius: 20px;
+            border-bottom-right-radius: 20px;
+        }
+
+        .header-row { display: flex; justify-content: space-between; align-items: center; }
+        .game-title { font-size: 24px; font-weight: 900; color: #007BFF; text-shadow: 1px 1px 2px rgba(0,0,0,0.1); }
+        .score-board { font-size: 20px; font-weight: bold; color: #FF4500; background: #FFF0F5; padding: 5px 15px; border-radius: 20px; border: 2px solid #FFB6C1; }
+
+        /* 题目展示区 */
+        #prompt-area {
+            text-align: center;
+            font-size: 20px;
+            font-weight: bold;
+            color: #333;
+            min-height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #E8F4F8;
+            border-radius: 10px;
+            padding: 10px;
+            border: 2px dashed #87CEEB;
+        }
+
+        /* 辅助工具栏 */
+        .toolbar { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
+        .btn {
+            padding: 8px 16px; font-size: 16px; font-weight: bold; border: none; border-radius: 20px;
+            cursor: pointer; color: white; transition: transform 0.1s, box-shadow 0.1s;
+            box-shadow: 0 4px 0 rgba(0,0,0,0.2);
+        }
+        .btn:active { transform: translateY(4px); box-shadow: 0 0 0 rgba(0,0,0,0.2); }
+        .btn-pinyin { background-color: #3498db; box-shadow: 0 4px 0 #2980b9; }
+        .btn-audio { background-color: #2ecc71; box-shadow: 0 4px 0 #27ae60; }
+        .btn-english { background-color: #9b59b6; box-shadow: 0 4px 0 #8e44ad; }
+
+        /* 掉落物游戏区 */
+        #play-area { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; }
+        
+        .falling-item {
+            position: absolute;
+            top: -100px;
+            display: flex; justify-content: center; align-items: center;
+            font-weight: bold; cursor: pointer;
+            transition: transform 0.1s;
+        }
+
+        /* 水滴样式 */
+        .raindrop {
+            width: 75px; height: 75px;
+            background: radial-gradient(circle at 30% 30%, #E0FFFF, #00BFFF);
+            border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+            box-shadow: inset 2px 2px 5px rgba(255,255,255,0.6), 2px 5px 10px rgba(0,0,0,0.15);
+            font-size: 16px; color: #003366;
+            text-align: center; line-height: 1.2; padding-top: 15px;
+        }
+        .raindrop::before {
+            content: ''; position: absolute; top: -15px; left: 50%; transform: translateX(-50%);
+            width: 0; height: 0; border-left: 20px solid transparent; border-right: 20px solid transparent; border-bottom: 30px solid #00BFFF;
+            z-index: -1;
+        }
+
+        /* 炸弹样式 */
+        .bomb {
+            width: 65px; height: 65px; background-color: #333; border-radius: 50%;
+            display: flex; justify-content: center; align-items: center;
+            font-size: 30px; box-shadow: inset -5px -5px 15px rgba(0,0,0,0.8);
+        }
+
+        /* 花朵样式 */
+        .flower {
+            width: 65px; height: 65px; background-color: #FFF; border-radius: 50%;
+            display: flex; justify-content: center; align-items: center;
+            font-size: 40px; box-shadow: 0 0 15px rgba(255, 105, 180, 0.5);
+        }
+
+        /* 动画与反馈 */
+        .score-popup {
+            position: absolute; font-size: 28px; font-weight: 900; z-index: 150; pointer-events: none;
+            animation: floatUp 0.8s ease-out forwards;
+        }
+        .score-popup.good { color: #2ecc71; text-shadow: 2px 2px #fff; }
+        .score-popup.bad { color: #e74c3c; text-shadow: 2px 2px #fff; }
+        @keyframes floatUp { 0% { opacity: 1; transform: translateY(0); } 100% { opacity: 0; transform: translateY(-80px); } }
+
+        /* 提示框 */
+        #toast {
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.85); color: white; padding: 20px 30px;
+            border-radius: 15px; font-size: 22px; z-index: 1000; opacity: 0; 
+            transition: opacity 0.3s; pointer-events: none; text-align: center;
+        }
+
+        /* 覆盖层 */
+        .overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 123, 255, 0.95); z-index: 500;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            color: white; text-align: center; padding: 20px;
+        }
+        .start-btn {
+            padding: 15px 40px; font-size: 26px; background-color: #FFD700; color: #8B4513;
+            border: none; border-radius: 35px; cursor: pointer; font-weight: 900;
+            box-shadow: 0 6px 0 #B8860B; transition: transform 0.1s; margin-top: 20px;
+        }
+        .start-btn:active { transform: translateY(4px); box-shadow: 0 2px 0 #B8860B; }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <div id="top-panel">
+        <div class="header-row">
+            <div class="game-title">💧 节水小卫士</div>
+            <div class="score-board">得分: <span id="score">0</span></div>
+        </div>
+        <div id="prompt-area">点击“开始游戏”进行挑战</div>
+        <div class="toolbar">
+            <button class="btn btn-pinyin" onclick="showHint('pinyin')">拼音</button>
+            <button class="btn btn-audio" onclick="playAudio()">朗读</button>
+            <button class="btn btn-english" onclick="showHint('english')">英文</button>
+        </div>
+    </div>
+
+    <div id="play-area"></div>
+    <div id="toast"></div>
+</div>
+
+<div id="start-screen" class="overlay">
+    <h1 style="font-size: 40px; margin-bottom: 10px;">节水小卫士</h1>
+    <p style="font-size: 18px; line-height: 1.6;">根据上方提示，接住正确的水滴词语！<br>🌸 小红花：+5分 | 💣 炸弹：-10分<br>正确水滴：+10分 | 错误水滴：-5分</p>
+    <button class="start-btn" onclick="startGame()">开始游戏</button>
+</div>
+
+<div id="game-over" class="overlay" style="display: none;">
+    <h1 style="font-size: 40px;">游戏结束</h1>
+    <p style="font-size: 24px; margin: 20px 0;">最终得分: <span id="final-score">0</span></p>
+    <button class="start-btn" onclick="startGame()">重新挑战</button>
+</div>
+
+<script>
+    const vocabularyList = [
+        { word: "因素", pinyin: "yīn sù", english: "factor", meaning: "决定事物成败的原因或条件。", sentence: "努力是取得成功的关键____。" },
+        { word: "水喉", pinyin: "shuǐ hóu", english: "water tap", meaning: "自来水管的开关。", sentence: "洗手后，请记得关紧____。" },
+        { word: "资源", pinyin: "zī yuán", english: "resources", meaning: "生产或生活资料的天然来源。", sentence: "水是宝贵的____，我们应该珍惜。" },
+        { word: "艰巨", pinyin: "jiān jù", english: "arduous", meaning: "困难而繁重。", sentence: "这是一项____的任务，需要团队合作。" },
+        { word: "昂贵", pinyin: "áng guì", english: "expensive", meaning: "价格很高。", sentence: "这台净水机器的维护费用非常____。" },
+        { word: "消耗", pinyin: "xiāo hào", english: "consume", meaning: "因使用而逐渐减少。", sentence: "洗澡时间过长会____大量的水。" },
+        { word: "干旱", pinyin: "gān hàn", english: "drought", meaning: "长期无雨造成的缺水现象。", sentence: "由于长期____，土地都裂开了。" },
+        { word: "扩大", pinyin: "kuò dà", english: "expand", meaning: "使范围、规模比原来大。", sentence: "新加坡正在____集水区的范围。" },
+        { word: "蓄水池", pinyin: "xù shuǐ chí", english: "reservoir", meaning: "人工修建的储水设施。", sentence: "麦里芝____风景优美，还能储水。" },
+        { word: "洗澡", pinyin: "xǐ zǎo", english: "take a shower", meaning: "用水洗去身上的污垢。", sentence: "节水小卫士____时会缩短时间。" },
+        { word: "浴室", pinyin: "yù shì", english: "bathroom", meaning: "专门用来洗澡的房间。", sentence: "离开____前，请确保水龙头关好。" },
+        { word: "趋势", pinyin: "qū shì", english: "trend", meaning: "事物发展的动向。", sentence: "全球气候变暖已经成为一种____。" },
+        { word: "开源节流", pinyin: "kāi yuán jié liú", english: "tap new sources and reduce usage", meaning: "开发水源，节约水流。", sentence: "我们要做到____，才能确保水供充足。" }
+    ];
+
+    let score = 0;
+    let isPlaying = false;
+    let currentVocab = null;
+    let items = [];
+    let fallSpeed = 2.5;
+    let animationId;
+    let spawnId;
+
+    const playArea = document.getElementById('play-area');
+    const scoreText = document.getElementById('score');
+    const promptArea = document.getElementById('prompt-area');
+    const toast = document.getElementById('toast');
+
+    function showHint(type) {
+        if (!isPlaying || !currentVocab) return;
+        toast.innerText = type === 'pinyin' ? `拼音：${currentVocab.pinyin}` : `英文：${currentVocab.english}`;
+        toast.style.opacity = 1;
+        setTimeout(() => toast.style.opacity = 0, 2000);
+    }
+
+    function playAudio() {
+        if (!isPlaying || !currentVocab || !('speechSynthesis' in window)) return;
+        const text = promptArea.innerText.replace(/【.*?】/, '').replace('____', currentVocab.word);
+        const utter = new SpeechSynthesisUtterance(text);
+        utter.lang = 'zh-CN';
+        window.speechSynthesis.speak(utter);
+    }
+
+    function generateQuestion() {
+        currentVocab = vocabularyList[Math.floor(Math.random() * vocabularyList.length)];
+        const type = Math.floor(Math.random() * 2);
+        promptArea.innerText = type === 0 ? `【填空】${currentVocab.sentence}` : `【意思】${currentVocab.meaning}`;
+    }
+
+    function spawnItem() {
+        if (!isPlaying) return;
+        const item = document.createElement('div');
+        item.className = 'falling-item';
+        const typeRand = Math.random();
+        let type, content;
+
+        if (typeRand < 0.6) {
+            type = 'raindrop';
+            item.classList.add('raindrop');
+            content = Math.random() > 0.4 ? currentVocab.word : vocabularyList[Math.floor(Math.random() * vocabularyList.length)].word;
+            item.innerText = content;
+        } else if (typeRand < 0.8) {
+            type = 'bomb';
+            item.classList.add('bomb');
+            item.innerText = '💣';
+        } else {
+            type = 'flower';
+            item.classList.add('flower');
+            item.innerText = '🌸';
+        }
+
+        const x = Math.random() * (window.innerWidth - 80) + 10;
+        item.style.left = `${x}px`;
+        let y = -100;
+        item.style.top = `${y}px`;
+
+        const clickHandler = (e) => {
+            e.preventDefault();
+            if (!isPlaying) return;
+            handleImpact(type, content, item, x, y);
+        };
+        item.addEventListener('touchstart', clickHandler);
+        item.addEventListener('mousedown', clickHandler);
+
+        playArea.appendChild(item);
+        items.push({ el: item, y, type, content, x });
+
+        spawnId = setTimeout(spawnItem, Math.max(700, 1800 - score * 5));
+    }
+
+    function handleImpact(type, content, el, x, y) {
+        let change = 0;
+        const currentY = parseFloat(el.style.top);
+        if (type === 'raindrop') {
+            if (content === currentVocab.word) {
+                change = 10;
+                generateQuestion();
+                fallSpeed += 0.1;
+            } else {
+                change = -5;
+            }
+        } else if (type === 'bomb') {
+            change = -10;
+        } else {
+            change = 5;
+        }
+
+        score += change;
+        scoreText.innerText = score;
+        showPopup(change, x, currentY);
+        el.remove();
+        items = items.filter(i => i.el !== el);
+        if (score <= -30) endGame();
+    }
+
+    function showPopup(num, x, y) {
+        const p = document.createElement('div');
+        p.className = `score-popup ${num > 0 ? 'good' : 'bad'}`;
+        p.innerText = num > 0 ? `+${num}` : num;
+        p.style.left = `${x}px`;
+        p.style.top = `${y}px`;
+        playArea.appendChild(p);
+        setTimeout(() => p.remove(), 800);
+    }
+
+    function gameLoop() {
+        if (!isPlaying) return;
+        items.forEach((item, index) => {
+            item.y += fallSpeed;
+            item.el.style.top = `${item.y}px`;
+            if (item.y > window.innerHeight) {
+                item.el.remove();
+                items.splice(index, 1);
+            }
+        });
+        animationId = requestAnimationFrame(gameLoop);
+    }
+
+    function startGame() {
+        score = 0;
+        fallSpeed = 2.5;
+        items = [];
+        isPlaying = true;
+        scoreText.innerText = '0';
+        playArea.innerHTML = '';
+        document.getElementById('start-screen').style.display = 'none';
+        document.getElementById('game-over').style.display = 'none';
+        generateQuestion();
+        spawnItem();
+        gameLoop();
+    }
+
+    function endGame() {
+        isPlaying = false;
+        clearTimeout(spawnId);
+        cancelAnimationFrame(animationId);
+        document.getElementById('final-score').innerText = score;
+        document.getElementById('game-over').style.display = 'flex';
+    }
+</script>
+</body>
+</html>
